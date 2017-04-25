@@ -6,6 +6,8 @@
 #ifndef MQTT_CONFIG_H_
 #define MQTT_CONFIG_H_
 
+#define MQTT_USE_SSL
+
 // Get from console
 // =================================================
 #define MQTT_HOST              "a1lqshc4oegz64.iot.us-west-2.amazonaws.com" ///< Customer specific MQTT HOST. The same will be used for Thing Shadow
