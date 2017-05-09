@@ -42,6 +42,19 @@ static bool messageArrivedOnDelta = false;
  */
 static char stringToEchoDelta[SHADOW_MAX_SIZE_OF_RX_BUFFER];
 
+char *mqtt_client_id_get( char clientid[30] )
+{
+    uint8_t mac[6];
+    char mac_str[13];
+
+    mico_wlan_get_mac_address( mac );
+    sprintf( mac_str, "%02X%02X%02X%02X%02X%02X",
+             mac[0],
+             mac[1], mac[2], mac[3], mac[4], mac[5] );
+    sprintf( clientid, "MiCO_%s", mac_str );
+
+    return clientid;
+}
 /**
  * @brief This function builds a full Shadow expected JSON document by putting the data in the reported section
  *
@@ -59,7 +72,7 @@ bool buildJSONForReported(char *pJsonDocument, size_t maxSizeOfJsonDocument, con
 
     char tempClientTokenBuffer[MAX_SIZE_CLIENT_TOKEN_CLIENT_SEQUENCE];
 
-    if(aws_iot_fill_with_client_token(tempClientTokenBuffer, MAX_SIZE_CLIENT_TOKEN_CLIENT_SEQUENCE) != SUCCESS){
+    if(aws_iot_fill_with_client_token(tempClientTokenBuffer, MAX_SIZE_CLIENT_TOKEN_CLIENT_SEQUENCE) != MQTT_SUCCESS){
         return false;
     }
 
@@ -100,7 +113,7 @@ void UpdateStatusCallback(const char *pThingName, ShadowActions_t action, Shadow
 
 static void aws_iot_shadow_main( mico_thread_arg_t arg )
 {
-    IoT_Error_t rc = FAILURE;
+    IoT_Error_t rc = MQTT_FAILURE;
 
     // initialize the mqtt client
     AWS_IoT_Client mqttClient;
@@ -117,7 +130,7 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
 
     iot_log("Shadow Init");
     rc = aws_iot_shadow_init(&mqttClient, &sp);
-    if (SUCCESS != rc) {
+    if (MQTT_SUCCESS != rc) {
         iot_log("Shadow Connection Error");
         goto exit;
     }
@@ -129,7 +142,7 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
 
     iot_log("Shadow Connect");
     rc = aws_iot_shadow_connect(&mqttClient, &scp);
-    if (SUCCESS != rc) {
+    if (MQTT_SUCCESS != rc) {
         iot_log("Shadow Connection Error");
         goto exit;
     }
@@ -140,7 +153,7 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
      *  #AWS_IOT_MQTT_MAX_RECONNECT_WAIT_INTERVAL
      */
     rc = aws_iot_shadow_set_autoreconnect_status(&mqttClient, true);
-    if(SUCCESS != rc){
+    if(MQTT_SUCCESS != rc){
         iot_log("Unable to set Auto Reconnect to true - %d", rc);
         goto exit;
     }
@@ -158,7 +171,7 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
     rc = aws_iot_shadow_register_delta(&mqttClient, &deltaObject);
 
     // Now wait in the loop to receive any message sent from the console
-    while (NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc) {
+    while (NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || MQTT_SUCCESS == rc) {
         /*
          * Lets check for the incoming messages for 200 ms.
          */
@@ -169,7 +182,7 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
             // If the client is attempting to reconnect we will skip the rest of the loop.
             continue;
         }else if( NETWORK_RECONNECTED == rc ){
-            iot_log("Reconnect Successful");
+            iot_log("Reconnect MQTT_SUCCESSful");
         }
 
         if (messageArrivedOnDelta) {
@@ -182,14 +195,14 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
         mico_rtos_thread_sleep(1);
     }
 
-    if (SUCCESS != rc) {
+    if (MQTT_SUCCESS != rc) {
         iot_log("An error occurred in the loop %d", rc);
     }
 
     iot_log("Disconnecting");
     rc = aws_iot_shadow_disconnect(&mqttClient);
 
-    if (SUCCESS != rc) {
+    if (MQTT_SUCCESS != rc) {
         iot_log("Disconnect error %d", rc);
     }
 
@@ -200,6 +213,6 @@ exit:
 OSStatus start_aws_iot_shadow( void )
 {
     return mico_rtos_create_thread( NULL, MICO_APPLICATION_PRIORITY, "aws shadow", aws_iot_shadow_main,
-                                        0x2000,
+                                        0x3000,
                                         0 );
 }
