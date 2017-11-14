@@ -198,6 +198,8 @@ RECONN:
     }
 
     if (MQTT_SUCCESS != rc) {
+        iot_log("try reconnect");
+        rc = aws_iot_shadow_disconnect(&mqttClient);
         goto RECONN;
     }
 
