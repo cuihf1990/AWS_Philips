@@ -140,11 +140,13 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
     scp.pMqttClientId = mqtt_client_id_get(clientid);
     scp.mqttClientIdLen = (uint16_t) strlen(mqtt_client_id_get(clientid));
 
-    iot_log("Shadow Connect");
+RECONN:
+    iot_log("Shadow Connect...");
     rc = aws_iot_shadow_connect(&mqttClient, &scp);
     if (MQTT_SUCCESS != rc) {
+        sleep(1);
         iot_log("Shadow Connection Error");
-        goto exit;
+        goto RECONN;
     }
 
     /*
@@ -155,7 +157,7 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
     rc = aws_iot_shadow_set_autoreconnect_status(&mqttClient, true);
     if(MQTT_SUCCESS != rc){
         iot_log("Unable to set Auto Reconnect to true - %d", rc);
-        goto exit;
+        goto RECONN;
     }
 
     jsonStruct_t deltaObject;
@@ -196,7 +198,7 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
     }
 
     if (MQTT_SUCCESS != rc) {
-        iot_log("An error occurred in the loop %d", rc);
+        goto RECONN;
     }
 
     iot_log("Disconnecting");
