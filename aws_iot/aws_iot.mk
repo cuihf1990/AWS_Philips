@@ -22,9 +22,10 @@
 ############################################################################### 
 NAME := App_AWS_Iot_shadow
 
-$(NAME)_SOURCES := mico_main.c aws_iot_main.c
+$(NAME)_SOURCES := mico_main.c aws_iot_main.c Uart_Receive.c Device.c Remote_Client.c \
+				 Get_CA_Info.c  Local_Udp.c
 
-$(NAME)_COMPONENTS := lib_aws_iot
-
+$(NAME)_COMPONENTS := lib_aws_iot  \
+						lib_fog
 
 
