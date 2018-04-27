@@ -20,7 +20,7 @@ void mico_system_delegate_config_will_start( void )
     if( aws_softap_combo_mode == true )
     {
         wifi_log("combo mode, softap:%s", fog_softap_name_get());
-        mico_wlan_monitor_enable_softap(fog_softap_name_get(), 6, aws_softap_up);
+       // mico_wlan_monitor_enable_softap(fog_softap_name_get(), 6, aws_softap_up);
     }
     wifi_log("config will start");
 }
@@ -384,11 +384,13 @@ OSStatus fog_wifi_config_mode( uint8_t mode )
         }else if( mode == FOG_AWS_SOFTAP_MODE )
         {
             mico_easylink_aws( mico_context, MICO_TRUE );
-        }else if( mode == FOG_AWS_SOFTAP_COMBO_MODE )
-        {
-            aws_softap_combo_mode = true;
-            mico_easylink_aws( mico_context, MICO_TRUE );
         }
+//        else if( mode == FOG_AWS_SOFTAP_COMBO_MODE )
+//        {
+//            wifi_log("combo mode, softap:%s", fog_softap_name_get());
+//            mico_wlan_monitor_enable_softap(fog_softap_name_get(), 6, aws_softap_up);
+//            mico_easylink_aws( mico_context, MICO_TRUE );
+//        }
         fog_wifi_config_start( );
     }
     #ifdef EasyLink_Needs_Reboot

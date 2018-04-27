@@ -1,4 +1,4 @@
-#include "mico.h"
+    #include "mico.h"
 #include "Device.h"
 #include "Uart_Receive.h"
 #include "Remote_Client.h"
@@ -26,10 +26,21 @@ mico_semaphore_t get_ca_sem = NULL;
 
 extern void aws_iot_thread(void);
 
+uint8_t get_info = 1;
+
 /* MICO system callback: Restore default configuration provided by application */
 void appRestoreDefault_callback( void * const user_config_data, uint32_t size )
 {
     memset( user_config_data, 0x0, size );
+}
+
+
+void Get_info_Success(uint8_t flag)
+{
+	if(flag)
+		get_info = 1;
+	else
+		get_info = 0;
 }
 
 static void micoNotify_WifiStatusHandler( WiFiEvent status, void* const inContext )
@@ -152,7 +163,7 @@ int application_start( void )
     err = mico_system_init( mico_context );
     require_noerr( err, exit );
 
-    fog_wifi_config_mode( FOG_AWS_SOFTAP_COMBO_MODE );
+    fog_wifi_config_mode( FOG_AWS_SOFTAP_MODE );
 
     /* Wait for wlan connection*/
     mico_rtos_get_semaphore( &wait_sem, MICO_WAIT_FOREVER );
@@ -170,7 +181,7 @@ int application_start( void )
 		mico_rtos_get_semaphore( &login_sem, MICO_WAIT_FOREVER );
 
 		app_log("start Ca ");
-		Get_CA_INFO();
+			
 		mico_rtos_get_semaphore( &get_ca_sem, MICO_WAIT_FOREVER );
 		app_log("save info");
 		internal_update_config(sys_context);

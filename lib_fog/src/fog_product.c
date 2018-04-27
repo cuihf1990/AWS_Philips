@@ -38,8 +38,8 @@ typedef struct _sign_flash_t
 } sign_flash_t;
 
 /*
- * fog id 烧录到user分区
- * fog id 偏移量0
+ * fog id 鐑у綍鍒皍ser鍒嗗尯
+ * fog id 鍋忕Щ閲�0
  */
 void fog_fog_id_set( char *id, int len )
 {
@@ -112,8 +112,8 @@ char *fog_fog_id_get( void )
 
 
 /*
- * signature 烧录到user分区
- * signature 偏移量80
+ * signature 鐑у綍鍒皍ser鍒嗗尯
+ * signature 鍋忕Щ閲�80
  */
 void fog_signature_set( char *sign, int len )
 {
@@ -181,8 +181,8 @@ char *fog_signature_get( void )
 }
 
 /*
- * product id 烧录到user分区
- * product id 偏移量40
+ * product id 鐑у綍鍒皍ser鍒嗗尯
+ * product id 鍋忕Щ閲�40
  */
 void fog_product_id_set( char *id, int len )
 {
@@ -409,7 +409,7 @@ int fog_timezero_get( void )
 static char softap_name[64] = {0};
 char *fog_softap_name_get( void )
 {
-    sprintf( softap_name, "smart-%s-%s", fog_type_id_get(), fog_device_sn_get()+6);
+    sprintf( softap_name, "%s-%s", "Philips", fog_device_sn_get()+6);
     return (char *)softap_name;
 }
 

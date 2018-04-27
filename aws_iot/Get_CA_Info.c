@@ -160,7 +160,8 @@ void GET_CA_Thread()
 	                         if((httpHeader->statusCode == 405) || (httpHeader->statusCode == 404))
 	                         {
 	                        	 Get_CA_log( "[FAILURE]fog http response fail, code:%d", httpHeader->statusCode);
-	                            break;
+	                        	 Get_info_Success(0);
+	                        	 break;
 	                         }
 	                        //只有code正确才解析返回数据,错误情况下解析容易造成内存溢出
 	                        if((httpHeader->statusCode == 200) || (httpHeader->statusCode == 201) || (httpHeader->statusCode == 202) || (httpHeader->statusCode == 400) || (httpHeader->statusCode == 401) || (httpHeader->statusCode == 403))
@@ -219,6 +220,7 @@ void GET_CA_Thread()
 			if(Get_Key_Step == 3)
 			{
 				if(Tcp_Buffer) free(Tcp_Buffer);
+				Get_info_Success(1);
 				mico_rtos_set_semaphore( &get_ca_sem );
 				mico_rtos_delete_thread(NULL);
 			}

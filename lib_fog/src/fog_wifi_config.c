@@ -72,6 +72,7 @@ static int wifi_config_handle( int fd, uint8_t *data, uint32_t data_len )
         err = json_get_composite_object( &jobj, "data" );
         require_action_string( err == WM_SUCCESS, exit, err = kGeneralErr, "get data error!" );
 
+#if 0
         err = json_get_val_str( &jobj, "product_id", string, sizeof(string) );
         require_noerr( err, exit );
         config_log("product_id:%s", string);
@@ -96,6 +97,7 @@ static int wifi_config_handle( int fd, uint8_t *data, uint32_t data_len )
         require_noerr( err, exit );
         config_log("enduser_id:%s", string);
         fog_enduser_id_set( string );
+#endif
 
         err = json_get_val_str( &jobj, "ssid", string, sizeof(string) );
         if( err == kNoErr )

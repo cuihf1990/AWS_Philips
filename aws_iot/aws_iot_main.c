@@ -42,6 +42,7 @@ static bool messageArrivedOnDelta = false;
 uint8_t Aws_Mqtt_satus = 0;
 extern mico_queue_t Uart_push_queue;
 extern system_context_t* sys_context;
+extern uint8_t get_info;
 
 uint32_t publishCount = 0;
 
@@ -193,13 +194,13 @@ void User_Data_Process(uint8_t type , uint8_t value)
 	    {
 	      port_t.port = 3;
 	      port_t.prop = 8;
-	      if(value == 1 )
+	      if(value == 1 )  ///手动
 	        port_t.value = 0;
-	      else if(value == 2)
+	      else if(value == 2)   ///颗粒物
 	        port_t.value = 1;
-	      else if(value ==3 )
+	      else if(value ==3 )    ///过敏原
 	        port_t.value =2 ;
-	      else if(value == 4)
+	      else if(value == 4)    //细菌
 	        port_t.value =3 ;
 	      Putprops(port_t);
 	    }break;
@@ -279,6 +280,7 @@ void Process_Cloud_data( char* payload , int payloadLen)
         if(err == 0)  {
         	iot_log("send command = %s ,value = %d ",(char *)data[i].name,atoi(Set_Data));
         	User_Data_Process(data[i].type,atoi(Set_Data));
+        	msleep(500);
         }
   	  }
 }
@@ -364,8 +366,10 @@ RECONN:
     rc = mqtt_subscribe(&mqttClient, Subscribe, strlen(Subscribe), QOS0, iot_subscribe_callback_handler, NULL);
     if(MQTT_SUCCESS != rc) {
     	iot_log("Error subscribing : %d ", rc);
+    	get_info =0;
     	return rc;
     }
+    get_info = 1;
     // Now wait in the loop to receive any message sent from the console
     while (NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || MQTT_SUCCESS == rc) {
         /*
@@ -388,7 +392,7 @@ RECONN:
         	msgParams.qos = QOS0;
         	msgParams.payloadLen = strlen(recv_message);
         	msgParams.payload = (char *) recv_message;
-        	sprintf(Publish,"Philips/%s/data",sys_context->flashContentInRam.Cloud_info.device_id);
+        	sprintf(Publish,"Philips/%s/status",sys_context->flashContentInRam.Cloud_info.device_id);
         	rc = mqtt_publish(&mqttClient, Publish, (uint16_t) strlen(Publish),&msgParams);
        // 	iot_log("rc == %d, data = %s",rc,msgParams.payload);
         }

@@ -16,7 +16,6 @@ volatile ring_buffer_t  rx_buffer;
 volatile uint8_t    rx_data[UART_BUFFER_LENGTH];
 
 extern uart_cmd_t uartcmd;
-extern uint8_t Aws_Mqtt_satus;
 mico_queue_t Uart_push_queue = NULL;
 
 mico_timer_t Pre_Filter_timer;
@@ -106,12 +105,14 @@ void  uartRecv_thread()
     mico_init_timer (&Filter2_Warning,Filter2_Warning_TIMMEOUT*1000, _Filter2_Warning, NULL);
     mico_start_timer (&Filter2_Warning);
 
+
+    uart_log("=================================================");
+
     while(1){
     	recv_len = get_uart_data(buffer_data,1024);
     	if(recv_len <= 0)
     		continue;
-    	if(Aws_Mqtt_satus > 0 )
-    		uart_data_process(buffer_data , recv_len);
+    	uart_data_process(buffer_data , recv_len);
     }
 }
 

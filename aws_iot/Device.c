@@ -19,7 +19,7 @@ extern mico_queue_t Uart_push_queue;
 
 extern mico_semaphore_t Subscribe_Sem;
 extern mico_semaphore_t connect_sem;
-
+extern uint8_t Aws_Mqtt_satus;
 extern system_context_t* sys_context;
 extern setup_port_t setup_port_msg;
 ////
@@ -45,7 +45,6 @@ char * Json_Philips = "{ \"ErrorCode\":\"%d\", "\
 		"\"FilterLife2\": \"%d\","\
 		"\"FilterType0\": \"%d\","\
 		"\"UILight\": \"%d\","\
-		"\"FilterType\": \"%d\","\
 		"\"FilterType1\": \"%d\","\
 		"\"FilterType2\": \"%d\","\
 		"\"AQILight\": \"%d\","\
@@ -257,15 +256,16 @@ bool Start_Report_Aws(uint8_t * buf , int data_len , int type)
 	 }else
 		 goto exit;
 
+
 	sprintf(Report_Device_Data,Json_Philips,uartcmd.ErrorCode,uartcmd.Notify,uartcmd.PM25,uartcmd.Switch,\
 		uartcmd.WindSpeed,uartcmd.Countdown,uartcmd.Prompt,uartcmd.childLock,uartcmd.FilterLife1,\
 		uartcmd.FilterLife2,uartcmd.FilterType0,uartcmd.UILight,uartcmd.FilterType1,uartcmd.FilterType2,\
 		uartcmd.AQILight,uartcmd.WorkMode,uartcmd.Runtime);
 
-    if(Report_Timer == 0 || ( Report_Timer + Report_TimeOut) < mico_rtos_get_time())
-    {
+  //  if(Report_Timer == 0 || ( Report_Timer + Report_TimeOut) < mico_rtos_get_time())
+  //  {
     	Report_Timer =  mico_rtos_get_time();
-	// device_log("report data = %s, memory = %d",Report_Device_Data,MicoGetMemoryInfo()->free_memory);
+    	device_log("report data = %s, memory = %d",Report_Device_Data,MicoGetMemoryInfo()->free_memory);
 
 	if(mico_rtos_is_queue_full(&Uart_push_queue))
 	{
@@ -276,7 +276,7 @@ bool Start_Report_Aws(uint8_t * buf , int data_len , int type)
 	err = mico_rtos_push_to_queue(&Uart_push_queue, Report_Device_Data, 200);
 	require_noerr_action(err, exit, device_log("[error]mico_rtos_push_to_queue err %d",err));
 	//device_log("have push data to queue");
-    }
+   // }
 	 return true;
 
 exit:
@@ -325,7 +325,6 @@ int uart_data_process(uint8_t * buf , int data_len)
                ////// connecting    active
              Setup_Putprops(setup_port_msg);
            }
-
            if(buf[12] == 0xff)   ///// null  clear
            {
         	 PlatformEasyLinkButtonLongPressedCallback();
@@ -357,7 +356,15 @@ int uart_data_process(uint8_t * buf , int data_len)
           else
         	  uartcmd.WindSpeed = buf[9];      //// WindSpeed          9
 
-          uartcmd.WorkMode = buf[31];
+          if(buf[31]  == 0){
+              uartcmd.WorkMode = 1;
+          }else   if(buf[31]  == 1){
+              uartcmd.WorkMode = 2;
+          }else   if(buf[31]  == 2){
+              uartcmd.WorkMode = 3;
+          }else   if(buf[31]  == 3){
+              uartcmd.WorkMode = 4;
+          }
 
           if(buf[49] == 0x00)
             uartcmd.ErrorCode = 0;
@@ -384,7 +391,8 @@ int uart_data_process(uint8_t * buf , int data_len)
           else if(buf[18] == 100)
             uartcmd.AQILight = 4;/////AQILight     18
           /////////////
-          Start_Report_Aws(buf,data_len,1);
+          if(Aws_Mqtt_satus > 0 )
+              Start_Report_Aws(buf,data_len,1);
         }
 		   break;
 	   case 4:
