@@ -181,7 +181,7 @@ int application_start( void )
 		mico_rtos_get_semaphore( &login_sem, MICO_WAIT_FOREVER );
 
 		app_log("start Ca ");
-			
+		Get_CA_INFO();
 		mico_rtos_get_semaphore( &get_ca_sem, MICO_WAIT_FOREVER );
 		app_log("save info");
 		internal_update_config(sys_context);

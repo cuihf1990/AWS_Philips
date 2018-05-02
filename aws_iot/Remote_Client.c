@@ -9,7 +9,7 @@
 #include "HTTPUtils.h"
 #include "json_parser.h"
 
-#define remote_log(M, ...) //custom_log("APP", M, ##__VA_ARGS__)
+#define remote_log(M, ...) custom_log("APP", M, ##__VA_ARGS__)
 
 
 static OSStatus ReceivedData( struct _HTTPHeader_t * inHeader, uint32_t inPos, uint8_t * inData, size_t inLen, void * inUserContext );

@@ -11,7 +11,7 @@
 #include "json_parser.h"
 
 
-#define Get_CA_log(M, ...)  //custom_log("APP", M, ##__VA_ARGS__)
+#define Get_CA_log(M, ...)  custom_log("APP", M, ##__VA_ARGS__)
 static OSStatus ReceivedData( struct _HTTPHeader_t * inHeader, uint32_t inPos, uint8_t * inData, size_t inLen, void * inUserContext );
 static void onClearData( struct _HTTPHeader_t * inHeader, void * inUserContext );
 extern system_context_t* sys_context;
