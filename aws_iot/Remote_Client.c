@@ -8,6 +8,7 @@
 #include "Remote_Client.h"
 #include "HTTPUtils.h"
 #include "json_parser.h"
+#include "device.h"
 
 #define remote_log(M, ...) custom_log("APP", M, ##__VA_ARGS__)
 
@@ -15,16 +16,20 @@
 static OSStatus ReceivedData( struct _HTTPHeader_t * inHeader, uint32_t inPos, uint8_t * inData, size_t inLen, void * inUserContext );
 static void ClearData( struct _HTTPHeader_t * inHeader, void * inUserContext );
 
-extern mico_semaphore_t login_sem;
+static mico_semaphore_t login_sem = NULL;
 extern system_context_t* sys_context;
+extern devcie_running_status_t  device_running_status;
 uint8_t Get_Info_Step = 1;
 
 void Start_Login()
 {
    int err = -1;
+   mico_rtos_init_semaphore( &login_sem, 1 );
 
-   err = mico_rtos_create_thread( NULL, MICO_APPLICATION_PRIORITY, "Remote_Client_Thread", Remote_Client_Thread,0x2000, (uint32_t)NULL);
+   err = mico_rtos_create_thread( NULL, MICO_APPLICATION_PRIORITY, "Remote_Client_Thread", Remote_Client_Thread,0x2500, (uint32_t)NULL);
    require_noerr_action( err, exit, remote_log("ERROR: Unable to start the Remote Client Thread.") );
+
+   mico_rtos_get_semaphore( &login_sem, MICO_WAIT_FOREVER );
 
    return ;
 
@@ -36,23 +41,23 @@ void Get_CERT_URL(mico_ssl_t client_ssl)
 {
     char * Report_data = NULL;
     int len = 0;
-    char  URL_Address[200] = {0};
+    char  URL_Address[MAX_TCP_LENGH] = {0};
 
     if(Report_data == NULL)
     	Report_data = malloc(MAX_TCP_LENGH);
 
     memset(Report_data,0,MAX_TCP_LENGH);
 
-
     sprintf(URL_Address,GET_CA_URL,sys_context->flashContentInRam.Cloud_info.mac_address);
-
 	sprintf(Report_data,HTTP_GET,URL_Address,HOST);
 
-	remote_log("report = %s",Report_data);
+	remote_log(" GET_CA_URL = %s , mac = %s",Report_data,sys_context->flashContentInRam.Cloud_info.mac_address);
 
 	len = ssl_send(client_ssl,Report_data,strlen(Report_data));
 	if(len <= 0)
-		remote_log("ssl send error");
+		remote_log("ssl send error %d",len);
+	else
+	    remote_log("ssl send len  %d",len);
 
 	if(Report_data)  free(Report_data);
 	if(URL_Address)  free(URL_Address);
@@ -167,7 +172,6 @@ void Remote_Client_Thread()
                          if((httpHeader->statusCode == 405) || (httpHeader->statusCode == 404))
                          {
                         	remote_log( "[FAILURE]fog http response fail, code:%d", httpHeader->statusCode);
-                        	Get_info_Success(0);
                         	break;
                          }
                         //只有code正确才解析返回数据,错误情况下解析容易造成内存溢出
@@ -227,7 +231,6 @@ void Remote_Client_Thread()
 		if(Get_Info_Step == 2)
 		{
 			if(Tcp_Buffer)  free(Tcp_Buffer);
-			Get_info_Success(1);
 			mico_rtos_set_semaphore( &login_sem );
 			mico_rtos_delete_thread(NULL);
 		}
@@ -249,10 +252,10 @@ void Cloud_Data_Process(uint8_t * Tcp_Buffer , int Buffer_Length)
       err = json_get_val_str( &jobj, "certificate_id", sys_context->flashContentInRam.Cloud_info.certificate_id, sizeof(sys_context->flashContentInRam.Cloud_info.certificate_id) );
       if(err != 0) remote_log("have no certificate_id");
 
-      err = json_get_val_str( &jobj, "certificate_url", sys_context->flashContentInRam.Cloud_info.certificate_url, sizeof(sys_context->flashContentInRam.Cloud_info.certificate_url) );
+      err = json_get_val_str( &jobj, "certificate_url", device_running_status.certificate_url, sizeof(device_running_status.certificate_url) );
       if(err != 0) remote_log("have no certificate_url");
 
-      err = json_get_val_str( &jobj, "privatekey_url", sys_context->flashContentInRam.Cloud_info.privatekey_id, sizeof(sys_context->flashContentInRam.Cloud_info.privatekey_id) );
+      err = json_get_val_str( &jobj, "privatekey_url", device_running_status.privatekey_url, sizeof(device_running_status.privatekey_url) );
       if(err != 0) remote_log("have no privatekey_ur");
 
       err = json_get_val_int( &jobj, "mqtt_port", &sys_context->flashContentInRam.Cloud_info.mqtt_port);
@@ -274,14 +277,6 @@ void Save_cloud_data(int num , char * data)
   case CERT_ID:
 	  memset(sys_context->flashContentInRam.Cloud_info.certificate_id , 0 ,INFO_MAX_DATA);
 	  strcpy(sys_context->flashContentInRam.Cloud_info.certificate_id,data);
-	  break;
-  case CERT_URL:
-	  memset(sys_context->flashContentInRam.Cloud_info.certificate_url , 0 ,INFO_MAX_DATA);
-	  strcpy(sys_context->flashContentInRam.Cloud_info.certificate_url,data);
-	  break;
-  case PRIVA_ID:
-	  memset(sys_context->flashContentInRam.Cloud_info.privatekey_id, 0 ,INFO_MAX_DATA);
-	  strcpy(sys_context->flashContentInRam.Cloud_info.privatekey_id,data);
 	  break;
   case MQTT_PORT:
 	  sys_context->flashContentInRam.Cloud_info.mqtt_port = atoi(data);

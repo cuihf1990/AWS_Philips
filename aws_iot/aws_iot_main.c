@@ -7,72 +7,15 @@
 #include "mico.h"
 #include "json_parser.h"
 #include "Device.h"
+#include "aws_iot_main.h"
 
-/**
- * @file shadow_console_echo.c
- * @brief  Echo received Delta message
- *
- * This application will echo the message received in delta, as reported.
- * for example:
- * Received Delta message
- * {
- *    "state": {
- *       "switch": "on"
- *   }
- * }
- * This delta message means the desired switch position has changed to "on"
- *
- * This application will take this delta message and publish it back as the reported message from the device.
- * {
- *    "state": {
- *     "reported": {
- *       "switch": "on"
- *      }
- *    }
- * }
- *
- * This update message will remove the delta that was created. If this message was not removed then the AWS IoT Thing Shadow is going to always have a delta and keep sending delta any time an update is applied to the Shadow
- * This example will not use any of the json builder/helper functions provided in the aws_iot_shadow_json_data.h.
- * @note Ensure the buffer sizes in aws_iot_config.h are big enough to receive the delta message. The delta message will also contain the metadata with the timestamps
- */
 
 #define iot_log(M, ...) custom_log("iot", M, ##__VA_ARGS__)
-
 static bool messageArrivedOnDelta = false;
-uint8_t Aws_Mqtt_satus = 0;
+extern devcie_running_status_t  device_running_status;
 extern mico_queue_t Uart_push_queue;
 extern system_context_t* sys_context;
 extern uint8_t get_info;
-
-uint32_t publishCount = 0;
-
-typedef struct {
- int  type;
- char * name;
-
-}data_process_t;
-
-enum{
-  Switch = 1,
-  WindSpeed,
-  Countdown,
-  childLock,
-  UILight,
-  AQILight,
-  WorkMode
-};
-
-
-data_process_t data[9] = {
-    {Switch,"Switch"},
-    {WindSpeed,"WindSpeed"},
-    {Countdown,"Countdown"},
-    {childLock,"childLock"},
-    {UILight,"UILight"},
-    {AQILight,"AQILight"},
-    {WorkMode,"WorkMode"},
-    {0,NULL}
-};
 
 /*
  * @note The delta message is always sent on the "state" key in the json
@@ -198,8 +141,8 @@ void User_Data_Process(uint8_t type , uint8_t value)
 	        port_t.value = 0;
 	      else if(value == 2)   ///颗粒物
 	        port_t.value = 1;
-	      else if(value ==3 )    ///过敏原
-	        port_t.value =2 ;
+	      else if(value == 3 )    ///过敏原
+	        port_t.value = 2 ;
 	      else if(value == 4)    //细菌
 	        port_t.value =3 ;
 	      Putprops(port_t);
@@ -257,42 +200,69 @@ void User_Data_Process(uint8_t type , uint8_t value)
 	  }
 }
 
-
 void Process_Cloud_data( char* payload , int payloadLen)
 {
     int err = -1;
 
 	jsontok_t json_tokens[10];    // Define an array of JSON tokens
-	jobj_t jobj;
-    char json_data[50] = {0};  ///////回调的payload缓存数据未清掉有乱码
-	char  Set_Data[5];
+	static json_object* jsonObj,*state_obj,*derired_obj,*j_param,*j_val;
+    char json_data[1024] = {0};  ///////回调的payload缓存数据未清掉有乱码
+	char*  Set_Data;
 
-    strncpy(json_data,payload,payloadLen);
+    memcpy(json_data,payload,payloadLen);
 
-//	iot_log("json_data = %s,json data = %s,payloadLen = %d",json_data,payload,payloadLen);
+	iot_log("json_data = %s,payloadLen = %d",json_data,payloadLen);
 
-    err = json_init( &jobj, json_tokens, 10, (char *) json_data, payloadLen );
-    if(err != 0) iot_log("parse error!");
+	jsonObj = json_tokener_parse(json_data);
 
-    for(int i = 0; data[i].name != NULL; i++) {
-    	iot_log("  i = %d , name = %s",i,(char *)data[i].name);
-        err = json_get_val_str( &jobj, (char *)data[i].name, Set_Data, 5 );
-        if(err == 0)  {
-        	iot_log("send command = %s ,value = %d ",(char *)data[i].name,atoi(Set_Data));
-        	User_Data_Process(data[i].type,atoi(Set_Data));
-        	msleep(500);
+	state_obj = json_object_object_get(jsonObj,"state");
+	iot_log("state= %s",json_object_get_string(state_obj));
+
+	derired_obj =   json_object_object_get(state_obj,"desired");
+    iot_log("desired= %s",json_object_get_string(derired_obj));
+
+    for (int i = 0; (char *)data[i].name != NULL; i++) {
+          j_param = json_object_object_get(derired_obj, (char *)data[i].name);
+          if (j_param != NULL) {
+            Set_Data = json_object_get_string(j_param);
+            iot_log("send command = %s ,value = %d ",(char *)data[i].name,atoi(Set_Data));
+            User_Data_Process(data[i].type,atoi(Set_Data));
+            msleep(500);
+          }
         }
-  	  }
 }
 
-void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
+void update_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
 									IoT_Publish_Message_Params *params, void *pData) {
 	IOT_UNUSED(pData);
 	IOT_UNUSED(pClient);
 	iot_log("Subscribe callback");
-	//iot_log("%.*s\t%.*s", topicNameLen, topicName, (int) params->payloadLen, (char *) params->payload);
+	//iot_log("%d   %s  %s",(int) params->payloadLen, (char *) params->payload,(char *)&params->payload[params->payloadLen-1]);
+	Process_Cloud_data((char *) params->payload,(int) params->payloadLen);
+	//iot_log("Free memory %d bytes", MicoGetMemoryInfo()->free_memory);
+}
+
+void get_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
+                                    IoT_Publish_Message_Params *params, void *pData) {
+    IOT_UNUSED(pData);
+    IOT_UNUSED(pClient);
+    iot_log("Subscribe callback");
+    iot_log("%.*s\t%.*s", topicNameLen, topicName, (int) params->payloadLen, (char *) params->payload);
     Process_Cloud_data((char *) params->payload,(int) params->payloadLen);
-    iot_log("Free memory %d bytes", MicoGetMemoryInfo()->free_memory);
+   //iot_log("Free memory %d bytes", MicoGetMemoryInfo()->free_memory);
+}
+
+void Pub_Shadow_get(AWS_IoT_Client mqttClient)
+{
+    int rc =-1;
+    IoT_Publish_Message_Params msgParams;
+    char Publish[50];
+    msgParams.qos = QOS0;
+    msgParams.payloadLen = strlen(Shadow_Get);
+    msgParams.payload = (char *) Shadow_Get;
+    sprintf(Publish,"$aws/things/%s/shadow/get",sys_context->flashContentInRam.Cloud_info.device_id);
+    rc = mqtt_publish(&mqttClient, Publish, (uint16_t) strlen(Publish),&msgParams);
+   // iot_log("rc == %d, data = %s",rc,msgParams.payload);
 }
 
 static void aws_iot_shadow_main( mico_thread_arg_t arg )
@@ -303,8 +273,9 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
     AWS_IoT_Client mqttClient;
     char clientid[40];
     static uint8_t * recv_message = NULL;  ///接收板卡数据缓存
-    char Subscribe[50];
-    char Publish[50];
+    char Subscribe_Get[MAC_TOPIC_LENGTH] = {0};
+    char Subscribe_Update[MAC_TOPIC_LENGTH] = {0};
+    char Publish[MAC_TOPIC_LENGTH] = {0};
 
     IoT_Publish_Message_Params msgParams;
 
@@ -322,11 +293,13 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
     sp.enableAutoReconnect = false;
     sp.disconnectHandler = NULL;
 
+#if 1
     iot_log(" info = %s",sp.pHost );
     iot_log(" info = %d",sp.port);
-    iot_log(" info = %s , %s",sp.pClientCRT,sys_context->flashContentInRam.Cloud_info.certificate);
+    iot_log(" info = %s",sp.pClientCRT);
     iot_log(" info = %s", sp.pClientKey );
     iot_log(" info = %s", sys_context->flashContentInRam.Cloud_info.device_id );
+#endif
 
     iot_log("Shadow Init");
     rc = aws_iot_shadow_init(&mqttClient, &sp);
@@ -342,7 +315,7 @@ static void aws_iot_shadow_main( mico_thread_arg_t arg )
 
 RECONN:
     iot_log("Shadow Connect...");
-    rc = aws_iot_shadow_connect(&mqttClient, &scp);
+    rc = aws_iot_shadow_connect(&mqttClient,  &scp);
     if (MQTT_SUCCESS != rc) {
         sleep(1);
         iot_log("Shadow Connection Error = %d",rc);
@@ -359,17 +332,48 @@ RECONN:
         goto RECONN;
     }
 
-    Aws_Mqtt_satus = 1;
+    device_running_status.AWS_Connect_status = 1;
 
     iot_log("Subscribing...");
-    sprintf(Subscribe,"Philips/%s/command",sys_context->flashContentInRam.Cloud_info.device_id);
-    rc = mqtt_subscribe(&mqttClient, Subscribe, strlen(Subscribe), QOS0, iot_subscribe_callback_handler, NULL);
+    sprintf(Subscribe_Update,"$aws/things/%s/shadow/update/accepted",sys_context->flashContentInRam.Cloud_info.device_id);
+    rc = mqtt_subscribe(&mqttClient, Subscribe_Update, strlen(Subscribe_Update), QOS0, update_subscribe_callback_handler, NULL);
     if(MQTT_SUCCESS != rc) {
-    	iot_log("Error subscribing : %d ", rc);
-    	get_info =0;
+        iot_log("Error subscribing update: %d ", rc);
+        return rc;
+    }else
+        iot_log("subscribing %s ,datalen = %d success",Subscribe_Update,strlen(Subscribe_Update));
+
+#if 0
+    iot_log("Subscribing...");
+    sprintf(Subscribe_Update,"$aws/things/%s/shadow/update/rejected",sys_context->flashContentInRam.Cloud_info.device_id);
+    rc = mqtt_subscribe(&mqttClient, Subscribe_Update, strlen(Subscribe_Update), QOS0, update_subscribe_callback_handler, NULL);
+    if(MQTT_SUCCESS != rc) {
+        iot_log("Error subscribing update: %d ", rc);
+        return rc;
+    }else
+        iot_log("subscribing update/rejected success");
+
+   sprintf(Subscribe_Get,"$aws/things/%s/shadow/get/accepted",sys_context->flashContentInRam.Cloud_info.device_id);
+   rc = mqtt_subscribe(&mqttClient, Subscribe_Get, strlen(Subscribe_Get), QOS0, get_subscribe_callback_handler, NULL);
+    if(MQTT_SUCCESS != rc) {
+    	iot_log("Error subscribing get : %d ", rc);
     	return rc;
     }
-    get_info = 1;
+    iot_log("subscribing  get/accepted success");
+
+    iot_log("Subscribing...");
+    sprintf(Subscribe_Update,"$aws/things/%s/shadow/get/rejected",sys_context->flashContentInRam.Cloud_info.device_id);
+    rc = mqtt_subscribe(&mqttClient, Subscribe_Update, strlen(Subscribe_Update), QOS0, update_subscribe_callback_handler, NULL);
+    if(MQTT_SUCCESS != rc) {
+        iot_log("Error subscribing update: %d ", rc);
+        return rc;
+    }else
+        iot_log("subscribing get/rejected success");
+
+
+    Pub_Shadow_get(mqttClient);
+#endif
+
     // Now wait in the loop to receive any message sent from the console
     while (NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || MQTT_SUCCESS == rc) {
         /*
@@ -379,27 +383,45 @@ RECONN:
 
         if (NETWORK_ATTEMPTING_RECONNECT == rc) {
             mico_rtos_thread_sleep(1);
-            Aws_Mqtt_satus = 0;
+            device_running_status.AWS_Connect_status = 0;
             // If the client is attempting to reconnect we will skip the rest of the loop.
             continue;
         }else if( NETWORK_RECONNECTED == rc ){
             iot_log("Reconnect MQTT_SUCCESSful");
-            Aws_Mqtt_satus = 1;
+            device_running_status.AWS_Connect_status = 1;
         }
 
         if( mico_rtos_pop_from_queue(&Uart_push_queue,recv_message,200)  == 0){
-        //	iot_log("recv data = %s",recv_message);
         	msgParams.qos = QOS0;
         	msgParams.payloadLen = strlen(recv_message);
         	msgParams.payload = (char *) recv_message;
-        	sprintf(Publish,"Philips/%s/status",sys_context->flashContentInRam.Cloud_info.device_id);
+        	switch(device_running_status.report_type){
+        	    case Shadow_update:
+                    sprintf(Publish,"$aws/things/%s/shadow/update",sys_context->flashContentInRam.Cloud_info.device_id);
+        	        break;
+        	    case Shadow_delete:
+        	        sprintf(Publish,"$aws/things/%s/shadow/delete",sys_context->flashContentInRam.Cloud_info.device_id);
+        	        break;
+        	    case Shadow_get:
+        	        sprintf(Publish,"$aws/things/%s/shadow/get",sys_context->flashContentInRam.Cloud_info.device_id);
+        	        break;
+        	    case Device_notice:
+        	        sprintf(Publish,"Philips/%s/notice",sys_context->flashContentInRam.Cloud_info.device_id);
+        	        break;
+        	    case Device_data:
+        	        sprintf(Publish,"Philips/%s/data",sys_context->flashContentInRam.Cloud_info.device_id);
+        	        break;
+        	    default:break;
+        	}
         	rc = mqtt_publish(&mqttClient, Publish, (uint16_t) strlen(Publish),&msgParams);
-       // 	iot_log("rc == %d, data = %s",rc,msgParams.payload);
+        //	iot_log("rc == %d, data = %s ， command type =%d",rc,msgParams.payload,device_running_status.report_type);
+        	iot_log("send to aws cloud");
         }
         // sleep for some time in seconds
         mico_rtos_thread_msleep(500);
     }
 
+    device_running_status.AWS_Connect_status = 0;
     if (MQTT_SUCCESS != rc) {
         iot_log("try reconnect");
         rc = aws_iot_shadow_disconnect(&mqttClient);
@@ -421,6 +443,6 @@ exit:
 OSStatus start_aws_iot_shadow( void )
 {
     return mico_rtos_create_thread( NULL, MICO_APPLICATION_PRIORITY, "aws shadow", aws_iot_shadow_main,
-                                        0x3000,
+                                        0x4000,
                                         0 );
 }

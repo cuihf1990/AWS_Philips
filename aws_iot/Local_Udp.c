@@ -6,12 +6,11 @@
  */
 #include "mico.h"
 #include "Local_Udp.h"
+#include "Device.h"
 
-#define local_udp(M, ...)  custom_log("APP", M, ##__VA_ARGS__)
+#define local_udp(M, ...)  //custom_log("APP", M, ##__VA_ARGS__)
 
 extern system_context_t* sys_context;
-extern uint8_t get_info;
-
 
 char *Udp_Send2APP_Success = "{\"Status\":\"Device_Discovery\",\"Device_id\":\"%s\"}";
 
@@ -65,7 +64,7 @@ void Local_Udp_Thread()
     timeout.tv_sec = 5;
     timeout.tv_usec = 0;
 
-    if(get_info == 1)
+    if(sys_context->flashContentInRam.Cloud_info.device_id[0] != '\0')
     	sprintf(Udp_Send,Udp_Send2APP_Success,sys_context->flashContentInRam.Cloud_info.device_id);
     else
     	sprintf(Udp_Send,Udp_Send2APP_fail,sys_context->flashContentInRam.Cloud_info.device_id);

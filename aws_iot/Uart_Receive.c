@@ -106,8 +106,6 @@ void  uartRecv_thread()
     mico_start_timer (&Filter2_Warning);
 
 
-    uart_log("=================================================");
-
     while(1){
     	recv_len = get_uart_data(buffer_data,1024);
     	if(recv_len <= 0)

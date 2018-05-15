@@ -9,6 +9,8 @@
 static char pre_ssid[MAX_SSID_LEN + 1];
 static char pre_key[MAX_KEY_LEN + 1];
 static bool aws_softap_combo_mode = false;
+extern  mico_semaphore_t connect_sem;
+extern system_context_t* sys_context;
 
 static void aws_softap_up(void)
 {
@@ -139,7 +141,7 @@ int fog_softap_connect_ap( uint32_t timeout_ms, char *ssid, char *passwd )
     micoWlanSuspendSoftAP( );
 
     mico_system_delegate_config_recv_ssid( ssid, passwd );
-
+    wifi_log("exit ,timeout_ms = %d",timeout_ms);
     if ( timeout_ms != 0 )
     {
         err = mico_rtos_init_semaphore( &net_semp, 2 );
@@ -156,6 +158,7 @@ int fog_softap_connect_ap( uint32_t timeout_ms, char *ssid, char *passwd )
         require_noerr( err, exit );
     }
 
+    wifi_log("start connect");
     strncpy( (char*) wNetConfig.ap_info.ssid, ssid, maxSsidLen );
     memcpy( wNetConfig.key, passwd, maxKeyLen );
     wNetConfig.key_len = strlen( passwd );
@@ -164,6 +167,7 @@ int fog_softap_connect_ap( uint32_t timeout_ms, char *ssid, char *passwd )
     wNetConfig.wifi_retry_interval = 100;
 
     micoWlanStartAdv( &wNetConfig );
+    wifi_log("start connect = %s , %s",wNetConfig.key,wNetConfig.key_len);
 
     if ( timeout_ms != 0 )
     {
@@ -185,6 +189,7 @@ int fog_softap_connect_ap( uint32_t timeout_ms, char *ssid, char *passwd )
     mico_system_delegate_config_will_stop( );
 
     exit:
+    wifi_log("exit");
     if ( timeout_ms != 0 )
     {
         mico_system_notify_remove( mico_notify_WIFI_STATUS_CHANGED,
@@ -383,6 +388,12 @@ OSStatus fog_wifi_config_mode( uint8_t mode )
             fog_softap_start( );
         }else if( mode == FOG_AWS_SOFTAP_MODE )
         {
+            wifi_log("device_easylink_status = %d",sys_context->flashContentInRam.micoSystemConfig.device_easylink_status );
+            if(sys_context->flashContentInRam.micoSystemConfig.device_easylink_status == 0 )
+             {
+             //  mico_rtos_get_semaphore(&connect_sem, MICO_WAIT_FOREVER);
+                mico_rtos_get_semaphore(&connect_sem, 2000);
+             }
             mico_easylink_aws( mico_context, MICO_TRUE );
         }
 //        else if( mode == FOG_AWS_SOFTAP_COMBO_MODE )
@@ -416,6 +427,7 @@ OSStatus fog_wifi_config_mode( uint8_t mode )
     {
         fog_wifi_connect_manage( );
         system_log("Available configuration. Starting Wi-Fi connection...");
+        mico_rtos_get_semaphore(&connect_sem, 2000);
         system_connect_wifi_fast( system_context( ) );
     }
     return 0;

@@ -13,9 +13,11 @@
 #define INFO_MAX_DATA 200
 #define CA_MAX_DATA  2048
 
-#define GET_CA_URL "https://otau6avky1.execute-api.cn-north-1.amazonaws.com.cn/api_done/certificate_for_philips?mac=%s&chipid=asdfadfa&sign=adsfasdfasdfasdf"
+//#define GET_CA_URL "https://otau6avky1.execute-api.cn-north-1.amazonaws.com.cn/api_done/certificate_for_philips?mac=%s&chipid=asdfadfa&sign=adsfasdfasdfasdf"
+#define GET_CA_URL "https://r349v9s93m.execute-api.cn-north-1.amazonaws.com.cn/v2/certification?mac=%s&chipid=AAQAAAu8AQRa8m1yAgEBAwEB&sign=MEQCIGr5q8SB4bHYHOtpsqTyUS5tv4iEeUaDjUkTfieEKeM2AiA7Z8LGBzJ2F/ojhzVISxvhZ3Mk2e4zLxYMqswnpFYXVg=="
 
-#define CA_REGISTER "https://otau6avky1.execute-api.cn-north-1.amazonaws.com.cn/api_done/activate_for_philips?mac=%s&passwd=asd34rtaef&productid=sadfas"
+//#define CA_REGISTER "https://otau6avky1.execute-api.cn-north-1.amazonaws.com.cn/api_done/activate_for_philips?mac=%s&passwd=asd34rtaef&productid=sadfas"
+#define CA_REGISTER "https://r349v9s93m.execute-api.cn-north-1.amazonaws.com.cn/v2/activation?mac=%s&passwd=asd34rtaef&productid=sadfas"
 
 #define HOST "otau6avky1.execute-api.cn-north-1.amazonaws.com.cn"
 

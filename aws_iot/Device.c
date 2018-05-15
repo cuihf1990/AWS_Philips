@@ -13,22 +13,14 @@
 #define device_log(M, ...) custom_log("APP", M, ##__VA_ARGS__)
 #define device_log_trace() custom_log_trace("APP")
 
-mico_timer_t _factory_connect_timer;
 
+extern devcie_running_status_t  device_running_status;
+extern system_context_t* sys_context;
 extern mico_queue_t Uart_push_queue;
-
 extern mico_semaphore_t Subscribe_Sem;
 extern mico_semaphore_t connect_sem;
-extern uint8_t Aws_Mqtt_satus;
-extern system_context_t* sys_context;
-extern setup_port_t setup_port_msg;
-////
-uint8_t wifi_connect_status = -1;
-uint8_t wifi_steup_status = -1;
 
-uint8_t need_change_handle = 0;  ////whether need subscribe MAC
-uint8_t wifi_factory_flag = 0;  /// whether have in factory
-
+static mico_timer_t _factory_connect_timer;
 static uint8_t Report_Device_Data[MAX_REPORT_LENGTH];
 
 uart_cmd_t uartcmd;
@@ -49,7 +41,11 @@ char * Json_Philips = "{ \"ErrorCode\":\"%d\", "\
 		"\"FilterType2\": \"%d\","\
 		"\"AQILight\": \"%d\","\
 		"\"WorkMode\": \"%d\","\
-		"\"Runtime\": \"%d\""\
+		"\"Runtime\": \"%d\","\
+		"\"WifiVersion\":\"%s\","\
+		"\"DeviceVersion\":\"%s\","\
+		"\"ProductId\":\"%s\","\
+		"\"Online\":\"True\"  "\
 		"}";
 
 uint16_t ctrl_crc16(unsigned char* pDataIn, int iLenIn)
@@ -109,12 +105,10 @@ void Setup_Putprops(setup_port_t setup_port_msg)
   cmd_buf[6] = setup_port_msg.C_prop;
   cmd_buf[7] = setup_port_msg.C_len;
   cmd_buf[8] = setup_port_msg.C_value;
-  wifi_connect_status = setup_port_msg.C_value;
 
   cmd_buf[9] = setup_port_msg.S_prop;
   cmd_buf[10] = setup_port_msg.S_len;
   cmd_buf[11] = setup_port_msg.S_value;
-  wifi_steup_status = setup_port_msg.S_value;
 
   crc16_value = ctrl_crc16(cmd_buf+5,8);
   cmd_buf[13] = (crc16_value>>8)&0xff;
@@ -180,11 +174,11 @@ void Fac_Putprops(fac_port_t fac_port,uint8_t num)
 
 void _factory_handler (void* arg)
 {
-  if(wifi_factory_flag == 1)
+  if(device_running_status.factory_enter_flag == 1)
   {
   fac_port_t fac_port;
   fac_port.pcba = 0;
-  fac_port.wifi = wifi_factory_flag;
+  fac_port.wifi = device_running_status.factory_enter_flag;
   fac_port.reset = 0;
   Fac_Putprops(fac_port,2);
   device_log("===================================================factory rest failed");
@@ -196,7 +190,7 @@ void _factory_handler (void* arg)
 void Philips_Factory()     /////connect timeout 30s
 {
 
-  wifi_factory_flag = 1;
+    device_running_status.factory_enter_flag = 1;
 
   if(sys_context->flashContentInRam.micoSystemConfig.configured == wLanUnConfigured ||    /////stopeasylink
 		  sys_context->flashContentInRam.micoSystemConfig.configured == unConfigured)
@@ -222,10 +216,6 @@ void Philips_Factory()     /////connect timeout 30s
   mico_start_timer (&_factory_connect_timer);
 }
 
-uint8_t Storage_param[100] = {0};
-uint8_t Storage_filter[100] = {0};
-
-uint8_t Report_Timer = 0;
 
 bool Start_Report_Aws(uint8_t * buf , int data_len , int type)
 {
@@ -233,10 +223,23 @@ bool Start_Report_Aws(uint8_t * buf , int data_len , int type)
 
 	 if(type == 1)    /// means param
 	 {
-		 if(memcmp(buf,Storage_param,data_len-2) != 0 )
+		 if(memcmp(buf,device_running_status.Storage_param,data_len-2) != 0 )
 		 {
-			 memset(Storage_param,0,sizeof(Storage_param));
-			 memcpy(Storage_param,buf,data_len);
+			 memset(device_running_status.Storage_param,0,sizeof(device_running_status.Storage_param));
+			 memcpy(device_running_status.Storage_param,buf,data_len);
+
+             if(device_running_status.Storage_ErrorCode != uartcmd.ErrorCode)      ////error code 优先级高
+             {
+                 device_running_status.Storage_ErrorCode = uartcmd.ErrorCode;
+                 device_running_status.report_type = Device_notice;
+             }else if(device_running_status.Storage_PM25 != uartcmd.PM25)
+			 {
+			     device_running_status.Storage_PM25 = uartcmd.PM25;
+			     device_running_status.report_type = Device_data;
+			 }else
+			     device_running_status.report_type = Shadow_update;
+
+             device_log("post type =%d",device_running_status.report_type);
 		 }else
 		 {
 		//	 device_log("same param data, no need report");
@@ -244,10 +247,11 @@ bool Start_Report_Aws(uint8_t * buf , int data_len , int type)
 		 }
 	 }else if(type == 2)  /// means filter
 	 {
-		 if(memcmp(buf,Storage_filter,data_len-2) != 0 )
+		 if(memcmp(buf,device_running_status.Storage_filter,data_len-2) != 0 )
 		 {
-			 memset(Storage_filter,0,sizeof(Storage_filter));
-			 memcpy(Storage_filter,buf,data_len);
+			 memset(device_running_status.Storage_filter,0,sizeof(device_running_status.Storage_filter));
+			 memcpy(device_running_status.Storage_filter,buf,data_len);
+			 device_running_status.report_type = Device_notice;
 		 }else
 		 {
 		//	 device_log("same filter data, no need report");
@@ -260,23 +264,20 @@ bool Start_Report_Aws(uint8_t * buf , int data_len , int type)
 	sprintf(Report_Device_Data,Json_Philips,uartcmd.ErrorCode,uartcmd.Notify,uartcmd.PM25,uartcmd.Switch,\
 		uartcmd.WindSpeed,uartcmd.Countdown,uartcmd.Prompt,uartcmd.childLock,uartcmd.FilterLife1,\
 		uartcmd.FilterLife2,uartcmd.FilterType0,uartcmd.UILight,uartcmd.FilterType1,uartcmd.FilterType2,\
-		uartcmd.AQILight,uartcmd.WorkMode,uartcmd.Runtime);
+		uartcmd.AQILight,uartcmd.WorkMode,uartcmd.Runtime,WifiVersion,DeviceVersion,sys_context->flashContentInRam.Cloud_info.device_id);
 
-  //  if(Report_Timer == 0 || ( Report_Timer + Report_TimeOut) < mico_rtos_get_time())
-  //  {
-    	Report_Timer =  mico_rtos_get_time();
-    	device_log("report data = %s, memory = %d",Report_Device_Data,MicoGetMemoryInfo()->free_memory);
+   // 	device_log("report data = %s, memory = %d",Report_Device_Data,MicoGetMemoryInfo()->free_memory);
 
 	if(mico_rtos_is_queue_full(&Uart_push_queue))
 	{
-	device_log("queue is full");
-	return false;
+	    device_log("queue is full");
+	    return false;
 	}
 
 	err = mico_rtos_push_to_queue(&Uart_push_queue, Report_Device_Data, 200);
 	require_noerr_action(err, exit, device_log("[error]mico_rtos_push_to_queue err %d",err));
-	//device_log("have push data to queue");
-   // }
+	device_log("push to queque");
+
 	 return true;
 
 exit:
@@ -305,7 +306,7 @@ int uart_data_process(uint8_t * buf , int data_len)
    case 0:{
 	   switch(buf[6]){
 	   case 2:
-		//   device_log("buf[9] = %d buf[12] = %d",buf[9],buf[12]);
+		 //   device_log("buf[9] = %d buf[12] = %d device_easylink_status =%d",buf[9],buf[12],sys_context->flashContentInRam.micoSystemConfig.device_easylink_status);
            if(sys_context->flashContentInRam.micoSystemConfig.need_easylink_return != 1)
            {
         	   sys_context->flashContentInRam.micoSystemConfig.need_easylink_return = 1;
@@ -323,7 +324,7 @@ int uart_data_process(uint8_t * buf , int data_len)
 
              mico_rtos_set_semaphore (&connect_sem);
                ////// connecting    active
-             Setup_Putprops(setup_port_msg);
+             Setup_Putprops(device_running_status.setup_port_msg);
            }
            if(buf[12] == 0xff)   ///// null  clear
            {
@@ -378,7 +379,10 @@ int uart_data_process(uint8_t * buf , int data_len)
             uartcmd.ErrorCode = 5;
           else if((buf[49]&0x20) == 0x20)
             uartcmd.ErrorCode = 6;
+
+        //  device_log("get errorcode  = %d",buf[49]);
           Process_notify(buf[49]);
+
           uartcmd.UILight = buf[21];/////UILight     21
           if( buf[18] == 0)
             uartcmd.AQILight = 0;/////AQILight     18
@@ -391,7 +395,7 @@ int uart_data_process(uint8_t * buf , int data_len)
           else if(buf[18] == 100)
             uartcmd.AQILight = 4;/////AQILight     18
           /////////////
-          if(Aws_Mqtt_satus > 0 )
+          if(device_running_status.AWS_Connect_status > 0 )
               Start_Report_Aws(buf,data_len,1);
         }
 		   break;
@@ -399,10 +403,10 @@ int uart_data_process(uint8_t * buf , int data_len)
 		//   device_log(" ========%d======%d===%d==device test=================",buf[9],buf[12],buf[15]);
            if(buf[9] == 1 && buf[12] == 0 && buf[15] == 0 )   /////pcba test
            {
-             if(need_change_handle == 0)
+             if(device_running_status.factory_send_mac == 0)
              {
                Mac_send();
-               need_change_handle = 1;
+               device_running_status.factory_send_mac = 1;
              }
              device_log("step 1 , reset alink info");
              fac_port.pcba = 0;
@@ -411,14 +415,14 @@ int uart_data_process(uint8_t * buf , int data_len)
              Fac_Putprops(fac_port,1);
            }else if(buf[9] == 0 && buf[12] == 1 && buf[15] == 0)  /////wifi test
            {
-             if(wifi_factory_flag == 0){
+             if(device_running_status.factory_enter_flag == 0){
                 device_log("step 2");
                 Philips_Factory();
              }
            }else if(buf[9] == 0 && buf[12] == 0 && buf[15] == 1)   //////reset test
            {
              device_log("step 3");
-             need_change_handle = 0;
+             device_running_status.factory_send_mac = 0;
              fac_port.pcba = 0;
              fac_port.wifi = 0;
              fac_port.reset = 0;     //////default
@@ -435,7 +439,6 @@ int uart_data_process(uint8_t * buf , int data_len)
            uartcmd.FilterType0 =  (buf[15]*256 +buf[16]);
            uartcmd.FilterLife1 = (buf[19]*256 +buf[20]);
            uartcmd.FilterLife2 = (buf[23]*256 +buf[24]);///LifeTimeFilter2   buf[23]*256 +buf[24]
-      //   Start_Report_Aws(buf,data_len,2);
 		   break;
 	   default:
 		   break;

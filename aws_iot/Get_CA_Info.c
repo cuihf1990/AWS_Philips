@@ -9,23 +9,26 @@
 #include "Remote_Client.h"
 #include "HTTPUtils.h"
 #include "json_parser.h"
-
+#include "device.h"
 
 #define Get_CA_log(M, ...)  custom_log("APP", M, ##__VA_ARGS__)
 static OSStatus ReceivedData( struct _HTTPHeader_t * inHeader, uint32_t inPos, uint8_t * inData, size_t inLen, void * inUserContext );
 static void onClearData( struct _HTTPHeader_t * inHeader, void * inUserContext );
 extern system_context_t* sys_context;
-extern mico_semaphore_t get_ca_sem;
+extern devcie_running_status_t  device_running_status;
+mico_semaphore_t get_ca_sem = NULL;
 int Get_Key_Step = 1;
 int Http_Totoa_Length = 0;
 
 void Get_CA_INFO()
 {
 	int err = 0;
+    mico_rtos_init_semaphore( &get_ca_sem, 1 );
 
 	err = mico_rtos_create_thread( NULL, MICO_APPLICATION_PRIORITY, "GET_CA_Thread", GET_CA_Thread,0x2000, (uint32_t)NULL);
 	require_noerr_action( err, exit, Get_CA_log("ERROR: Unable to start the GET  CA  Thread.") );
 
+    mico_rtos_get_semaphore( &get_ca_sem, MICO_WAIT_FOREVER );
 	return ;
 
 	exit:
@@ -43,7 +46,9 @@ void Get_CERT(mico_ssl_t client_ssl)
 
     memset(Report_data,0,MAX_TCP_LENGH);
 
-	sprintf(Report_data,HTTP_GET,sys_context->flashContentInRam.Cloud_info.certificate_url,CA_HOST);
+  //  Get_CA_log("URL = %s",sys_context->flashContentInRam.Cloud_info.certificate_url);
+
+	sprintf(Report_data,HTTP_GET,device_running_status.certificate_url,CA_HOST);
 	len = ssl_send(client_ssl,Report_data,strlen(Report_data));
 	if(len <= 0)
 		Get_CA_log("ssl send error");
@@ -62,7 +67,8 @@ void Get_PRIVATEKEY(mico_ssl_t client_ssl)
 
     memset(Report_data,0,MAX_TCP_LENGH);
 
-	sprintf(Report_data,HTTP_GET,sys_context->flashContentInRam.Cloud_info.privatekey_id,CA_HOST);
+   // Get_CA_log("URL = %s",sys_context->flashContentInRam.Cloud_info.privatekey_id);
+	sprintf(Report_data,HTTP_GET,device_running_status.privatekey_url,CA_HOST);
 	len = ssl_send(client_ssl,Report_data,strlen(Report_data));
 	if(len <= 0)
 		Get_CA_log("ssl send error");
@@ -160,7 +166,6 @@ void GET_CA_Thread()
 	                         if((httpHeader->statusCode == 405) || (httpHeader->statusCode == 404))
 	                         {
 	                        	 Get_CA_log( "[FAILURE]fog http response fail, code:%d", httpHeader->statusCode);
-	                        	 Get_info_Success(0);
 	                        	 break;
 	                         }
 	                        //只有code正确才解析返回数据,错误情况下解析容易造成内存溢出
@@ -220,7 +225,6 @@ void GET_CA_Thread()
 			if(Get_Key_Step == 3)
 			{
 				if(Tcp_Buffer) free(Tcp_Buffer);
-				Get_info_Success(1);
 				mico_rtos_set_semaphore( &get_ca_sem );
 				mico_rtos_delete_thread(NULL);
 			}
@@ -287,7 +291,7 @@ void Get_Key(uint8_t * inData, int Current_len)
 		}
 		if(sys_context->flashContentInRam.Cloud_info.certificate_len >= Http_Totoa_Length)
 		Get_Key_Step = 2;
-		Get_CA_log("inData = %s",sys_context->flashContentInRam.Cloud_info.certificate);
+	//	Get_CA_log("inData = %s",sys_context->flashContentInRam.Cloud_info.certificate);
 	}else if(strstr(inData,"PRIVATE") != NULL){
         if(Current_len < Http_Totoa_Length){
         Get_CA_log("cloud_info->privatekey_len = %d",sys_context->flashContentInRam.Cloud_info.privatekey_len);
