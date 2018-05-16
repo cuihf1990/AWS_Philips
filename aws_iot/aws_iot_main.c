@@ -252,6 +252,16 @@ void get_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, ui
    //iot_log("Free memory %d bytes", MicoGetMemoryInfo()->free_memory);
 }
 
+void get_rejected_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
+                                   IoT_Publish_Message_Params *params, void *pData) {
+   IOT_UNUSED(pData);
+   IOT_UNUSED(pClient);
+   iot_log("Subscribe callback");
+   iot_log("%.*s\t%.*s", topicNameLen, topicName, (int) params->payloadLen, (char *) params->payload);
+   Process_Cloud_data((char *) params->payload,(int) params->payloadLen);
+  //iot_log("Free memory %d bytes", MicoGetMemoryInfo()->free_memory);
+}
+
 void Pub_Shadow_get(AWS_IoT_Client mqttClient)
 {
     int rc =-1;
@@ -262,7 +272,7 @@ void Pub_Shadow_get(AWS_IoT_Client mqttClient)
     msgParams.payload = (char *) Shadow_Get;
     sprintf(Publish,"$aws/things/%s/shadow/get",sys_context->flashContentInRam.Cloud_info.device_id);
     rc = mqtt_publish(&mqttClient, Publish, (uint16_t) strlen(Publish),&msgParams);
-   // iot_log("rc == %d, data = %s",rc,msgParams.payload);
+    iot_log("rc == %d, data = %s",rc,msgParams.payload);
 }
 
 static void aws_iot_shadow_main( mico_thread_arg_t arg )
@@ -341,25 +351,27 @@ RECONN:
         iot_log("Error subscribing update: %d ", rc);
         return rc;
     }else
-        iot_log("subscribing %s ,datalen = %d success",Subscribe_Update,strlen(Subscribe_Update));
+        iot_log("subscribing %s success",Subscribe_Update,strlen(Subscribe_Update));
+
+    sprintf(Subscribe_Get,"$aws/things/%s/shadow/get/accepted",sys_context->flashContentInRam.Cloud_info.device_id);
+     rc = mqtt_subscribe(&mqttClient, Subscribe_Get, strlen(Subscribe_Get), QOS0, get_subscribe_callback_handler, NULL);
+      if(MQTT_SUCCESS != rc) {
+          iot_log("Error subscribing get : %d ", rc);
+          return rc;
+      }
+      iot_log("subscribing %s success",Subscribe_Get,strlen(Subscribe_Get));
+
+      Pub_Shadow_get(mqttClient);
 
 #if 0
     iot_log("Subscribing...");
     sprintf(Subscribe_Update,"$aws/things/%s/shadow/update/rejected",sys_context->flashContentInRam.Cloud_info.device_id);
-    rc = mqtt_subscribe(&mqttClient, Subscribe_Update, strlen(Subscribe_Update), QOS0, update_subscribe_callback_handler, NULL);
+    rc = mqtt_subscribe(&mqttClient, Subscribe_Update, strlen(Subscribe_Update), QOS0, get_rejected_callback_handler, NULL);
     if(MQTT_SUCCESS != rc) {
         iot_log("Error subscribing update: %d ", rc);
         return rc;
     }else
         iot_log("subscribing update/rejected success");
-
-   sprintf(Subscribe_Get,"$aws/things/%s/shadow/get/accepted",sys_context->flashContentInRam.Cloud_info.device_id);
-   rc = mqtt_subscribe(&mqttClient, Subscribe_Get, strlen(Subscribe_Get), QOS0, get_subscribe_callback_handler, NULL);
-    if(MQTT_SUCCESS != rc) {
-    	iot_log("Error subscribing get : %d ", rc);
-    	return rc;
-    }
-    iot_log("subscribing  get/accepted success");
 
     iot_log("Subscribing...");
     sprintf(Subscribe_Update,"$aws/things/%s/shadow/get/rejected",sys_context->flashContentInRam.Cloud_info.device_id);
@@ -370,8 +382,6 @@ RECONN:
     }else
         iot_log("subscribing get/rejected success");
 
-
-    Pub_Shadow_get(mqttClient);
 #endif
 
     // Now wait in the loop to receive any message sent from the console
