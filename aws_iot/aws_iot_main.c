@@ -16,7 +16,7 @@ extern devcie_running_status_t  device_running_status;
 extern mico_queue_t Uart_push_queue;
 extern system_context_t* sys_context;
 extern uint8_t get_info;
-
+extern uart_cmd_t uartcmd;
 /*
  * @note The delta message is always sent on the "state" key in the json
  * @note Any time messages are bigger than AWS_IOT_MQTT_RX_BUF_LEN the underlying MQTT library will ignore it. The maximum size of the message that can be received is limited to the AWS_IOT_MQTT_RX_BUF_LEN
@@ -128,6 +128,8 @@ void User_Data_Process(uint8_t type , uint8_t value)
 	  {
 	  case Switch:
 	    {
+	      if(uartcmd.Switch ==value )
+	          break;
 	      port_t.port = 3;
 	      port_t.prop = 2;
 	      port_t.value = value;
@@ -135,20 +137,17 @@ void User_Data_Process(uint8_t type , uint8_t value)
 	    }break;
 	  case WorkMode:
 	    {
+	      if(uartcmd.WorkMode ==value )
+	          break;
 	      port_t.port = 3;
 	      port_t.prop = 8;
-	      if(value == 1 )  ///手动
-	        port_t.value = 0;
-	      else if(value == 2)   ///颗粒物
-	        port_t.value = 1;
-	      else if(value == 3 )    ///过敏原
-	        port_t.value = 2 ;
-	      else if(value == 4)    //细菌
-	        port_t.value =3 ;
+	      port_t.value = value ;
 	      Putprops(port_t);
 	    }break;
 	  case WindSpeed:
 	    {
+	      if(uartcmd.WindSpeed ==value )
+	          break;
 	      port_t.port = 3;
 	      port_t.prop = 1;
 	      if(value == 0)
@@ -161,6 +160,8 @@ void User_Data_Process(uint8_t type , uint8_t value)
 	    }break;
 	  case Countdown:
 	    {
+	      if(uartcmd.Countdown ==value )
+	          break;
 	      port_t.port = 3;
 	      port_t.prop = 6;
 	      port_t.value = value;
@@ -168,6 +169,8 @@ void User_Data_Process(uint8_t type , uint8_t value)
 	    }break;
 	  case childLock:
 	    {
+	      if(uartcmd.childLock ==value )
+	         break;
 	      port_t.port = 3;
 	      port_t.prop = 0x03;
 	      port_t.value = value;
@@ -175,6 +178,8 @@ void User_Data_Process(uint8_t type , uint8_t value)
 	    }break;
 	  case AQILight:
 	    {
+	      if(uartcmd.AQILight ==value )
+	          break;
 	      port_t.port = 3;
 	      port_t.prop = 0x04;
 	      if(value == 0)
@@ -191,6 +196,8 @@ void User_Data_Process(uint8_t type , uint8_t value)
 	    }break;
 	  case UILight:
 	    {
+	      if(uartcmd.UILight ==value )
+	          break;
 	      port_t.port = 3;
 	      port_t.prop = 0x05;
 	      port_t.value = value;
@@ -200,27 +207,34 @@ void User_Data_Process(uint8_t type , uint8_t value)
 	  }
 }
 
-void Process_Cloud_data( char* payload , int payloadLen)
+void Process_Cloud_data( char* payload , int payloadLen ,int flag)
 {
     int err = -1;
 
 	jsontok_t json_tokens[10];    // Define an array of JSON tokens
 	static json_object* jsonObj,*state_obj,*derired_obj,*j_param,*j_val;
-    char json_data[1024] = {0};  ///////回调的payload缓存数据未清掉有乱码
+    char json_data[1024*2] = {0};  ///////回调的payload缓存数据未清掉有乱码
 	char*  Set_Data;
 
     memcpy(json_data,payload,payloadLen);
 
-	iot_log("json_data = %s,payloadLen = %d",json_data,payloadLen);
+	//iot_log("json_data = %s,payloadLen = %d",json_data,payloadLen);
 
 	jsonObj = json_tokener_parse(json_data);
-
+	if(flag ==1){
 	state_obj = json_object_object_get(jsonObj,"state");
 	iot_log("state= %s",json_object_get_string(state_obj));
 
 	derired_obj =   json_object_object_get(state_obj,"desired");
     iot_log("desired= %s",json_object_get_string(derired_obj));
+	}else if(flag ==2)
+	{
+	state_obj = json_object_object_get(jsonObj,"state");
+	iot_log("state= %s",json_object_get_string(state_obj));
 
+	derired_obj =   json_object_object_get(state_obj,"delta");
+    iot_log("delta = %s",json_object_get_string(derired_obj));
+	}
     for (int i = 0; (char *)data[i].name != NULL; i++) {
           j_param = json_object_object_get(derired_obj, (char *)data[i].name);
           if (j_param != NULL) {
@@ -237,8 +251,8 @@ void update_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName,
 	IOT_UNUSED(pData);
 	IOT_UNUSED(pClient);
 	iot_log("Subscribe callback");
-	//iot_log("%d   %s  %s",(int) params->payloadLen, (char *) params->payload,(char *)&params->payload[params->payloadLen-1]);
-	Process_Cloud_data((char *) params->payload,(int) params->payloadLen);
+	iot_log("%d   %s ",(int) params->payloadLen, (char *) params->payload);//,(char *)&params->payload[params->payloadLen-1]);
+	Process_Cloud_data((char *) params->payload,(int) params->payloadLen,1);
 	//iot_log("Free memory %d bytes", MicoGetMemoryInfo()->free_memory);
 }
 
@@ -247,19 +261,9 @@ void get_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, ui
     IOT_UNUSED(pData);
     IOT_UNUSED(pClient);
     iot_log("Subscribe callback");
-    iot_log("%.*s\t%.*s", topicNameLen, topicName, (int) params->payloadLen, (char *) params->payload);
-    Process_Cloud_data((char *) params->payload,(int) params->payloadLen);
+    iot_log("%d   %s  %s",(int) params->payloadLen, (char *) params->payload);//,(char *)&params->payload[params->payloadLen-1]);
+    Process_Cloud_data((char *) params->payload,(int) params->payloadLen,2);
    //iot_log("Free memory %d bytes", MicoGetMemoryInfo()->free_memory);
-}
-
-void get_rejected_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
-                                   IoT_Publish_Message_Params *params, void *pData) {
-   IOT_UNUSED(pData);
-   IOT_UNUSED(pClient);
-   iot_log("Subscribe callback");
-   iot_log("%.*s\t%.*s", topicNameLen, topicName, (int) params->payloadLen, (char *) params->payload);
-   Process_Cloud_data((char *) params->payload,(int) params->payloadLen);
-  //iot_log("Free memory %d bytes", MicoGetMemoryInfo()->free_memory);
 }
 
 void Pub_Shadow_get(AWS_IoT_Client mqttClient)
@@ -363,27 +367,6 @@ RECONN:
 
       Pub_Shadow_get(mqttClient);
 
-#if 0
-    iot_log("Subscribing...");
-    sprintf(Subscribe_Update,"$aws/things/%s/shadow/update/rejected",sys_context->flashContentInRam.Cloud_info.device_id);
-    rc = mqtt_subscribe(&mqttClient, Subscribe_Update, strlen(Subscribe_Update), QOS0, get_rejected_callback_handler, NULL);
-    if(MQTT_SUCCESS != rc) {
-        iot_log("Error subscribing update: %d ", rc);
-        return rc;
-    }else
-        iot_log("subscribing update/rejected success");
-
-    iot_log("Subscribing...");
-    sprintf(Subscribe_Update,"$aws/things/%s/shadow/get/rejected",sys_context->flashContentInRam.Cloud_info.device_id);
-    rc = mqtt_subscribe(&mqttClient, Subscribe_Update, strlen(Subscribe_Update), QOS0, update_subscribe_callback_handler, NULL);
-    if(MQTT_SUCCESS != rc) {
-        iot_log("Error subscribing update: %d ", rc);
-        return rc;
-    }else
-        iot_log("subscribing get/rejected success");
-
-#endif
-
     // Now wait in the loop to receive any message sent from the console
     while (NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || MQTT_SUCCESS == rc) {
         /*
@@ -424,8 +407,7 @@ RECONN:
         	    default:break;
         	}
         	rc = mqtt_publish(&mqttClient, Publish, (uint16_t) strlen(Publish),&msgParams);
-        //	iot_log("rc == %d, data = %s ， command type =%d",rc,msgParams.payload,device_running_status.report_type);
-        	iot_log("send to aws cloud");
+        	iot_log("rc == %d, data = %s ， command type =%d",rc,msgParams.payload,device_running_status.report_type);
         }
         // sleep for some time in seconds
         mico_rtos_thread_msleep(500);

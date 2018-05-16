@@ -357,6 +357,8 @@ int uart_data_process(uint8_t * buf , int data_len)
           else
         	  uartcmd.WindSpeed = buf[9];      //// WindSpeed          9
 
+          uartcmd.WorkMode = buf[31];
+#if 0
           if(buf[31]  == 0){
               uartcmd.WorkMode = 1;
           }else   if(buf[31]  == 1){
@@ -366,7 +368,7 @@ int uart_data_process(uint8_t * buf , int data_len)
           }else   if(buf[31]  == 3){
               uartcmd.WorkMode = 4;
           }
-
+#endif
           if(buf[49] == 0x00)
             uartcmd.ErrorCode = 0;
           else if(buf[49] == 0x80)
