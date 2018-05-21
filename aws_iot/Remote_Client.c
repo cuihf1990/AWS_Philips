@@ -110,12 +110,15 @@ void Remote_Client_Thread()
 
     while(1){
     	if(Remote_Client_fd == -1){    ////Î´´´½¨socket
+    	    GETHOSTNAME:
+    	    remote_log("start gethostname");
     		hostent_content = gethostbyname( (char *)HOST);
             if(hostent_content == NULL)
             {
             	msleep(500);
-            	return;
+            	goto GETHOSTNAME;
             }
+            remote_log("gethostname success");
             /*HTTPHeaderCreateWithCallback set some callback functions */
             httpHeader = HTTPHeaderCreateWithCallback( HTTP_RESPONSE_BODY_MAX_LEN, ReceivedData, NULL, &context );
             if ( httpHeader == NULL )
@@ -148,7 +151,6 @@ void Remote_Client_Thread()
             	Get_CERT_URL(client_ssl);
             else if(Get_Info_Step == 2)
             	Get_MQTT(client_ssl);
-
     	}else {
     	    FD_ZERO(&Client_fds);
     	    FD_SET(Remote_Client_fd, &Client_fds);
@@ -247,7 +249,7 @@ void Cloud_Data_Process(uint8_t * Tcp_Buffer , int Buffer_Length)
 
       remote_log("recv = %s",Tcp_Buffer);
       err = json_init( &jobj, json_tokens, 10, (char *) Tcp_Buffer, strlen( Tcp_Buffer ) );
-      if(err != 0) remote_log("parse error!");
+      if(err != 0) {remote_log("parse error!"); return;}
 
       err = json_get_val_str( &jobj, "certificate_id", sys_context->flashContentInRam.Cloud_info.certificate_id, sizeof(sys_context->flashContentInRam.Cloud_info.certificate_id) );
       if(err != 0) remote_log("have no certificate_id");

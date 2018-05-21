@@ -1,4 +1,4 @@
-    #include "mico.h"
+#include "mico.h"
 #include "Device.h"
 #include "Uart_Receive.h"
 #include "Remote_Client.h"
@@ -156,7 +156,7 @@ int application_start( void )
     mico_rtos_get_semaphore( &wait_sem, MICO_WAIT_FOREVER );
     app_log("wifi connected successful");
 
-  //  memset(&sys_context->flashContentInRam.Cloud_info,0,sizeof(Cloud_info_t));
+ //   memset(&sys_context->flashContentInRam.Cloud_info,0,sizeof(Cloud_info_t));
 
     if(sys_context->flashContentInRam.Cloud_info.device_id[0] == '\0'){
     	user_get_device_mac(sys_context->flashContentInRam.Cloud_info.mac_address,sizeof(sys_context->flashContentInRam.Cloud_info.mac_address));

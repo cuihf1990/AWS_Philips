@@ -8,18 +8,26 @@
 #ifndef AWS_IOT_REMOTE_CLIENT_H_
 #define AWS_IOT_REMOTE_CLIENT_H_
 
+#define  FRANKFURT  1
+
 #define MAX_TCP_LENGH 1024
 #define HTTP_RESPONSE_BODY_MAX_LEN 2048
 #define INFO_MAX_DATA 200
 #define CA_MAX_DATA  2048
 
-//#define GET_CA_URL "https://otau6avky1.execute-api.cn-north-1.amazonaws.com.cn/api_done/certificate_for_philips?mac=%s&chipid=asdfadfa&sign=adsfasdfasdfasdf"
-#define GET_CA_URL "https://r349v9s93m.execute-api.cn-north-1.amazonaws.com.cn/v2/certification?mac=%s&chipid=AAQAAAu8AQRa8m1yAgEBAwEB&sign=MEQCIGr5q8SB4bHYHOtpsqTyUS5tv4iEeUaDjUkTfieEKeM2AiA7Z8LGBzJ2F/ojhzVISxvhZ3Mk2e4zLxYMqswnpFYXVg=="
-
-//#define CA_REGISTER "https://otau6avky1.execute-api.cn-north-1.amazonaws.com.cn/api_done/activate_for_philips?mac=%s&passwd=asd34rtaef&productid=sadfas"
+#ifndef FRANKFURT
+#define GET_CA_URL "https://r349v9s93m.execute-api.cn-north-1.amazonaws.com.cn/v2/certification?mac=%s&chipid=AAQAAAu%%2BAQRa8m1yAgEBAwEB&sign=MEQCIB3YBzk7r8k4SlKzt6x40khyyHudcnDSf/xnz9Fw4YVMAiAooFNSmLUCt/9NUd1HjYn5sQd7WdEcMf4sMFUyzY5poQ=="
 #define CA_REGISTER "https://r349v9s93m.execute-api.cn-north-1.amazonaws.com.cn/v2/activation?mac=%s&passwd=asd34rtaef&productid=sadfas"
+#else
+#define GET_CA_URL "https://2y1t4xnx84.execute-api.eu-central-1.amazonaws.com/v2/certificate-for-philips-v2?mac=%s&chipid=AAQAAAu+AQRa8m1yAgEBAwEB&sign=MEQCIB3YBzk7r8k4SlKzt6x40khyyHudcnDSf/xnz9Fw4YVMAiAooFNSmLUCt/9NUd1HjYn5sQd7WdEcMf4sMFUyzY5poQ=="
+#define CA_REGISTER "https://2y1t4xnx84.execute-api.eu-central-1.amazonaws.com/v2/activate-for-philips-v2?mac=%s&passwd=asd34rtaef&productid=sadfas"
+#endif
 
+#ifndef FRANKFURT
 #define HOST "otau6avky1.execute-api.cn-north-1.amazonaws.com.cn"
+#else
+#define HOST  "2y1t4xnx84.execute-api.eu-central-1.amazonaws.com"
+#endif
 
 #define MAX_PARAMS_NUM 6                                                           //////////B0F89315C09
 

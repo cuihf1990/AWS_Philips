@@ -102,12 +102,14 @@ void GET_CA_Thread()
 
 	    while(1){
 	    	if(Remote_Client_fd == -1){    ////Î´´´½¨socket
+	    	    Get_CA_log("start gethostname");
 	    		hostent_content = gethostbyname( (char *)CA_HOST);
 	            if(hostent_content == NULL)
 	            {
 	            	msleep(500);
 	            	return;
 	            }
+	            Get_CA_log("gethostname success");
 	            /*HTTPHeaderCreateWithCallback set some callback functions */
 	            httpHeader = HTTPHeaderCreateWithCallback( HTTP_RESPONSE_BODY_MAX_LEN, ReceivedData, onClearData, &context );
 	            if ( httpHeader == NULL )

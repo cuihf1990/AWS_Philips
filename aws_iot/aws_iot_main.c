@@ -5,7 +5,7 @@
 #include "mico_rtos_common.h"
 #include "Remote_Client.h"
 #include "mico.h"
-#include "json_parser.h"
+#include "json_object.h"
 #include "Device.h"
 #include "aws_iot_main.h"
 
@@ -211,39 +211,45 @@ void Process_Cloud_data( char* payload , int payloadLen ,int flag)
 {
     int err = -1;
 
-	jsontok_t json_tokens[10];    // Define an array of JSON tokens
 	static json_object* jsonObj,*state_obj,*derired_obj,*j_param,*j_val;
-    char json_data[1024*2] = {0};  ///////回调的payload缓存数据未清掉有乱码
-	char*  Set_Data;
+    char* json_data = NULL;  ///////回调的payload缓存数据未清掉有乱码
+	static char  Set_Data[10] = {0};
+
+	if(json_data == NULL)
+	    json_data = malloc(1024*2);
 
     memcpy(json_data,payload,payloadLen);
 
 	//iot_log("json_data = %s,payloadLen = %d",json_data,payloadLen);
 
-	jsonObj = json_tokener_parse(json_data);
-	if(flag ==1){
-	state_obj = json_object_object_get(jsonObj,"state");
-	iot_log("state= %s",json_object_get_string(state_obj));
+    jsonObj = json_tokener_parse(json_data);
+    state_obj = json_object_object_get(jsonObj,"state");
+    if(state_obj == NULL) goto exit;
 
+	if(flag ==1){
 	derired_obj =   json_object_object_get(state_obj,"desired");
-    iot_log("desired= %s",json_object_get_string(derired_obj));
 	}else if(flag ==2)
 	{
-	state_obj = json_object_object_get(jsonObj,"state");
-	iot_log("state= %s",json_object_get_string(state_obj));
-
 	derired_obj =   json_object_object_get(state_obj,"delta");
-    iot_log("delta = %s",json_object_get_string(derired_obj));
 	}
+	if(derired_obj == NULL) goto exit;
+
+    iot_log("desired= %s",json_object_get_string(derired_obj));
+
     for (int i = 0; (char *)data[i].name != NULL; i++) {
           j_param = json_object_object_get(derired_obj, (char *)data[i].name);
           if (j_param != NULL) {
-            Set_Data = json_object_get_string(j_param);
+            strcpy(Set_Data,json_object_get_string(j_param));
             iot_log("send command = %s ,value = %d ",(char *)data[i].name,atoi(Set_Data));
             User_Data_Process(data[i].type,atoi(Set_Data));
             msleep(500);
           }
         }
+
+  exit:
+      iot_log("exit ");
+      if(json_data)  free(json_data);
+      if(jsonObj)  json_object_put(jsonObj);
 }
 
 void update_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
@@ -407,7 +413,8 @@ RECONN:
         	    default:break;
         	}
         	rc = mqtt_publish(&mqttClient, Publish, (uint16_t) strlen(Publish),&msgParams);
-        	iot_log("rc == %d, data = %s ， command type =%d",rc,msgParams.payload,device_running_status.report_type);
+        //	iot_log("rc == %d, data = %s ， command type =%d",rc,msgParams.payload,device_running_status.report_type);
+        	iot_log("Free memory %d bytes", MicoGetMemoryInfo()->free_memory);
         }
         // sleep for some time in seconds
         mico_rtos_thread_msleep(500);

@@ -48,6 +48,30 @@ char * Json_Philips = "{ \"ErrorCode\":\"%d\", "\
 		"\"Online\":\"True\"  "\
 		"}";
 
+char * Report_frank = "{\"state\":{\"reported\" :{ \"ErrorCode\":\"%d\", "\
+        "\"Notify\": \"%d\","\
+        "\"PM25\": \"%d\","\
+        "\"Switch\": \"%d\","\
+        "\"WindSpeed\": \"%d\","\
+        "\"Countdown\": \"%d\","\
+        "\"Prompt\": \"%d\","\
+        "\"childLock\": \"%d\","\
+        "\"FilterLife1\": \"%d\","\
+        "\"FilterLife2\": \"%d\","\
+        "\"FilterType0\": \"%d\","\
+        "\"UILight\": \"%d\","\
+        "\"FilterType1\": \"%d\","\
+        "\"FilterType2\": \"%d\","\
+        "\"AQILight\": \"%d\","\
+        "\"WorkMode\": \"%d\","\
+        "\"Runtime\": \"%d\","\
+        "\"WifiVersion\":\"%s\","\
+        "\"DeviceVersion\":\"%s\","\
+        "\"ProductId\":\"%s\","\
+        "\"Online\":\"True\"  "\
+        "}}}";
+
+
 uint16_t ctrl_crc16(unsigned char* pDataIn, int iLenIn)
 {
   unsigned char const CrcOffSet=0;
@@ -260,11 +284,17 @@ bool Start_Report_Aws(uint8_t * buf , int data_len , int type)
 	 }else
 		 goto exit;
 
-
-	sprintf(Report_Device_Data,Json_Philips,uartcmd.ErrorCode,uartcmd.Notify,uartcmd.PM25,uartcmd.Switch,\
-		uartcmd.WindSpeed,uartcmd.Countdown,uartcmd.Prompt,uartcmd.childLock,uartcmd.FilterLife1,\
-		uartcmd.FilterLife2,uartcmd.FilterType0,uartcmd.UILight,uartcmd.FilterType1,uartcmd.FilterType2,\
-		uartcmd.AQILight,uartcmd.WorkMode,uartcmd.Runtime,WifiVersion,DeviceVersion,sys_context->flashContentInRam.Cloud_info.device_id);
+	 if(device_running_status.report_type == Shadow_update){
+	     sprintf(Report_Device_Data,Report_frank,uartcmd.ErrorCode,uartcmd.Notify,uartcmd.PM25,uartcmd.Switch,\
+	            uartcmd.WindSpeed,uartcmd.Countdown,uartcmd.Prompt,uartcmd.childLock,uartcmd.FilterLife1,\
+	            uartcmd.FilterLife2,uartcmd.FilterType0,uartcmd.UILight,uartcmd.FilterType1,uartcmd.FilterType2,\
+	            uartcmd.AQILight,uartcmd.WorkMode,uartcmd.Runtime,WifiVersion,DeviceVersion,sys_context->flashContentInRam.Cloud_info.device_id);
+	 }else if(device_running_status.report_type == Device_data || device_running_status.report_type == Device_notice){
+	     sprintf(Report_Device_Data,Json_Philips,uartcmd.ErrorCode,uartcmd.Notify,uartcmd.PM25,uartcmd.Switch,\
+	             uartcmd.WindSpeed,uartcmd.Countdown,uartcmd.Prompt,uartcmd.childLock,uartcmd.FilterLife1,\
+	             uartcmd.FilterLife2,uartcmd.FilterType0,uartcmd.UILight,uartcmd.FilterType1,uartcmd.FilterType2,\
+	             uartcmd.AQILight,uartcmd.WorkMode,uartcmd.Runtime,WifiVersion,DeviceVersion,sys_context->flashContentInRam.Cloud_info.device_id);
+	 }
 
    // 	device_log("report data = %s, memory = %d",Report_Device_Data,MicoGetMemoryInfo()->free_memory);
 
@@ -276,7 +306,6 @@ bool Start_Report_Aws(uint8_t * buf , int data_len , int type)
 
 	err = mico_rtos_push_to_queue(&Uart_push_queue, Report_Device_Data, 200);
 	require_noerr_action(err, exit, device_log("[error]mico_rtos_push_to_queue err %d",err));
-	device_log("push to queque");
 
 	 return true;
 
